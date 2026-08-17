@@ -1,0 +1,655 @@
+/* ============================================================
+   ISO → BOOTABLE USB CREATOR - ULTRA TERMINAL STYLES
+   ============================================================ */
+
+:root {
+  --bg-dark: #07090e;
+  --bg-card: rgba(15, 20, 32, 0.85);
+  --bg-card-border: rgba(0, 243, 255, 0.15);
+  --bg-terminal: #0a0e17;
+  
+  --cyan: #00f3ff;
+  --cyan-glow: rgba(0, 243, 255, 0.35);
+  --emerald: #00ff88;
+  --emerald-glow: rgba(0, 255, 136, 0.35);
+  --amber: #ffb700;
+  --amber-glow: rgba(255, 183, 0, 0.35);
+  --danger: #ff3366;
+  --danger-glow: rgba(255, 51, 102, 0.35);
+
+  --text-main: #e2e8f0;
+  --text-dim: #94a3b8;
+  --text-muted: #64748b;
+
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-dark);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* Background animated gradient mesh */
+.bg-mesh {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: 
+    radial-gradient(circle at 15% 20%, rgba(0, 243, 255, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 85% 75%, rgba(0, 255, 136, 0.06) 0%, transparent 40%),
+    radial-gradient(circle at 50% 50%, rgba(10, 14, 23, 1) 0%, #05070a 100%);
+  z-index: -2;
+}
+
+/* CRT Scanline Overlay */
+.scanline-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: linear-gradient(
+    rgba(18, 16, 16, 0) 50%, 
+    rgba(0, 0, 0, 0.25) 50%
+  ), linear-gradient(
+    90deg,
+    rgba(255, 0, 0, 0.03),
+    rgba(0, 255, 0, 0.01),
+    rgba(0, 0, 255, 0.03)
+  );
+  background-size: 100% 3px, 6px 100%;
+  pointer-events: none;
+  z-index: 999;
+}
+
+body.crt-effect .scanline-overlay {
+  display: block;
+}
+
+/* Header */
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.2rem 2rem;
+  background: rgba(10, 14, 23, 0.8);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--bg-card-border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.logo-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.logo-icon {
+  font-size: 1.8rem;
+  animation: pulse-rotate 8s linear infinite;
+}
+
+@keyframes pulse-rotate {
+  0% { transform: rotate(0deg); }
+  50% { transform: rotate(180deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.logo-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.logo-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  background: linear-gradient(135deg, var(--cyan), var(--emerald));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.logo-version {
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  text-decoration: none;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, rgba(0, 243, 255, 0.2), rgba(0, 255, 136, 0.2));
+  border-color: var(--cyan);
+  color: var(--cyan);
+  box-shadow: 0 0 15px var(--cyan-glow);
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, var(--cyan), var(--emerald));
+  color: #000;
+  box-shadow: 0 0 25px var(--cyan-glow);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: rgba(30, 41, 59, 0.6);
+  border-color: rgba(148, 163, 184, 0.2);
+  color: var(--text-main);
+}
+
+.btn-secondary:hover {
+  background: rgba(51, 65, 85, 0.8);
+  border-color: rgba(148, 163, 184, 0.4);
+}
+
+.btn-github {
+  background: #181d28;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.btn-github:hover {
+  background: #242b3b;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* App Container Grid */
+.app-container {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 1.5rem;
+  max-width: 1440px;
+  margin: 1.5rem auto;
+  padding: 0 1.5rem;
+  flex: 1;
+  width: 100%;
+}
+
+@media (max-width: 1024px) {
+  .app-container {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Terminal Window Card */
+.terminal-card {
+  background: var(--bg-terminal);
+  border: 1px solid var(--bg-card-border);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 30px var(--cyan-glow);
+  overflow: hidden;
+  height: 680px;
+}
+
+.terminal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: #0d121d;
+  border-bottom: 1px solid rgba(0, 243, 255, 0.1);
+}
+
+.window-controls {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.window-controls .dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.dot.red { background: #ff5f56; }
+.dot.yellow { background: #ffbd2e; }
+.dot.green { background: #27c93f; }
+
+.terminal-title {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.terminal-toolbar {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.tool-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tool-btn:hover, .tool-btn.active {
+  background: rgba(0, 243, 255, 0.15);
+  color: var(--cyan);
+  border-color: var(--cyan);
+}
+
+/* Terminal Body */
+.terminal-body {
+  flex: 1;
+  padding: 1.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  overflow-y: auto;
+  color: #d1d5db;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Custom Scrollbar */
+.terminal-body::-webkit-scrollbar {
+  width: 8px;
+}
+.terminal-body::-webkit-scrollbar-track {
+  background: #080b12;
+}
+.terminal-body::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+
+/* Terminal Line Formatting */
+.t-line {
+  margin-bottom: 0.25rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.t-header {
+  color: var(--cyan);
+  font-weight: 700;
+}
+
+.t-info {
+  color: #38bdf8;
+}
+
+.t-success {
+  color: var(--emerald);
+  font-weight: 600;
+}
+
+.t-warning {
+  color: var(--amber);
+}
+
+.t-error {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.t-highlight {
+  color: #f43f5e;
+  font-weight: 700;
+}
+
+.t-dim {
+  color: var(--text-muted);
+}
+
+/* Interactive Input Line */
+.terminal-input-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  font-family: var(--font-mono);
+}
+
+.prompt-user {
+  color: var(--emerald);
+  font-weight: 700;
+}
+
+.prompt-path {
+  color: var(--cyan);
+}
+
+.prompt-char {
+  color: #fff;
+  font-weight: 700;
+}
+
+.term-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  caret-color: var(--cyan);
+}
+
+/* Terminal Footer / Quick Actions */
+.terminal-footer {
+  padding: 0.6rem 1rem;
+  background: #0b0f19;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.quick-choices {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.quick-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-right: 0.2rem;
+}
+
+.chip {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-main);
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.chip-action:hover {
+  background: rgba(0, 243, 255, 0.2);
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
+.chip-danger {
+  border-color: rgba(255, 51, 102, 0.3);
+  color: var(--danger);
+}
+
+.chip-danger:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
+/* Sidebar & Cards */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.side-card {
+  background: var(--bg-card);
+  border: 1px solid var(--bg-card-border);
+  border-radius: 12px;
+  padding: 1.2rem;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.card-glow {
+  border-color: var(--cyan);
+  box-shadow: 0 0 20px rgba(0, 243, 255, 0.15);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.card-header h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.card-desc {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-bottom: 0.75rem;
+  line-height: 1.4;
+}
+
+.code-box {
+  background: #080b12;
+  border: 1px solid rgba(0, 243, 255, 0.2);
+  border-radius: 8px;
+  padding: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.code-box code {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--emerald);
+  word-break: break-all;
+}
+
+.btn-copy {
+  background: var(--cyan);
+  color: #000;
+  border: none;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 0.72rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-copy:hover {
+  background: #fff;
+}
+
+/* Dropzone */
+.dropzone {
+  border: 2px dashed rgba(0, 243, 255, 0.3);
+  border-radius: 8px;
+  padding: 1.5rem 1rem;
+  text-align: center;
+  cursor: pointer;
+  background: rgba(0, 243, 255, 0.02);
+  transition: all 0.2s ease;
+}
+
+.dropzone:hover, .dropzone.drag-over {
+  border-color: var(--cyan);
+  background: rgba(0, 243, 255, 0.08);
+}
+
+.drop-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.drop-text {
+  font-size: 0.85rem;
+  color: var(--text-main);
+  margin-bottom: 0.2rem;
+}
+
+.drop-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+/* ISO Info Panel */
+.iso-info-panel {
+  margin-top: 1rem;
+  background: #080b12;
+  border-radius: 8px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.iso-info-panel.hidden { display: none; }
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+}
+
+.info-row .label { color: var(--text-dim); }
+.info-row .val { color: var(--cyan); font-weight: 600; }
+.info-row .status-valid { color: var(--emerald); }
+
+/* USB List */
+.usb-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+.usb-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: #0a0e17;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.usb-item:hover, .usb-item.active-device {
+  border-color: var(--emerald);
+  background: rgba(0, 255, 136, 0.05);
+}
+
+.usb-icon {
+  font-size: 1.4rem;
+}
+
+.usb-details {
+  flex: 1;
+}
+
+.usb-name {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--emerald);
+}
+
+.usb-meta {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.usb-tag {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.usb-select-badge {
+  font-size: 0.7rem;
+  background: var(--emerald);
+  color: #000;
+  font-weight: 700;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+}
+
+.btn-mini {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-mini:hover {
+  color: var(--cyan);
+  border-color: var(--cyan);
+}
+
+/* Toast Notifications */
+.toast-container {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 1000;
+}
+
+.toast {
+  background: #0f172a;
+  border: 1px solid var(--cyan);
+  color: #fff;
+  padding: 0.8rem 1.2rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  animation: slide-in 0.3s ease;
+}
+
+@keyframes slide-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}

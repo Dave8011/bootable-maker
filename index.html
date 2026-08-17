@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ISO → Bootable USB Creator | Interactive Terminal</title>
+  <meta name="description" content="A powerful, interactive terminal web interface for creating bootable Linux USB drives from ISO images easily and safely.">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- CSS -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-dark crt-effect">
+
+  <!-- Background Animated Mesh -->
+  <div class="bg-mesh"></div>
+  <div class="scanline-overlay"></div>
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="logo-group">
+      <div class="logo-icon">📀</div>
+      <div class="logo-text">
+        <span class="logo-title">BootableMaker</span>
+        <span class="logo-version">v2.4.0</span>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button id="btn-run-top" class="btn btn-primary glow-cyan">
+        <span class="btn-icon">▶</span> Run Script
+      </button>
+      <button id="btn-copy-curl" class="btn btn-secondary">
+        <span class="btn-icon">📋</span> Copy One-Liner
+      </button>
+
+      <a href="https://github.com/Dave8011/bootable-maker" target="_blank" class="btn btn-github">
+        <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Grid Layout -->
+  <main class="app-container">
+    
+    <!-- Left / Center: Interactive Terminal Container -->
+    <section class="terminal-card">
+      <div class="terminal-header">
+        <div class="window-controls">
+          <span class="dot red"></span>
+          <span class="dot yellow"></span>
+          <span class="dot green"></span>
+        </div>
+        <div class="terminal-title">
+          <span class="title-icon">💻</span> bash — dave@garuda: ~/bootable-maker
+        </div>
+        <div class="terminal-toolbar">
+          <button id="toggle-crt" class="tool-btn active" title="Toggle CRT Scanline">📺 CRT</button>
+          <button id="clear-term" class="tool-btn" title="Clear Screen">🧹 Clear</button>
+          <button id="reset-wizard" class="tool-btn" title="Restart Session">🔄 Reset</button>
+        </div>
+      </div>
+
+      <div class="terminal-body" id="terminal-body">
+        <!-- Terminal Output Buffer -->
+        <div id="terminal-output"></div>
+
+        <!-- Interactive Input Line -->
+        <div class="terminal-input-line" id="input-line">
+          <span class="prompt-user">dave@garuda</span>:<span class="prompt-path">~/bootable-maker</span><span class="prompt-char">$</span>
+          <input type="text" id="term-input" class="term-input" autocomplete="off" spellcheck="false" placeholder="Type a command or press Run Script above...">
+        </div>
+      </div>
+
+      <!-- Quick Action Floating Bar inside Terminal -->
+      <div class="terminal-footer">
+        <div class="quick-choices" id="quick-choices">
+          <span class="quick-label">Quick Actions:</span>
+          <button class="chip chip-action" id="chip-run-script">▶ Run Script Wizard</button>
+          <button class="chip chip-action" id="chip-sample-iso">📀 Load Sample ISO</button>
+          <button class="chip chip-action" id="chip-scan-usb">🔍 Scan USB Drives</button>
+          <button class="chip chip-danger" id="chip-erase">⚠️ Confirm ERASE</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Sidebar: Controls & Live USB Inspector -->
+    <aside class="sidebar">
+      
+      <!-- One-Liner Box -->
+      <div class="side-card card-glow">
+        <div class="card-header">
+          <h3>⚡ Instant Terminal Launcher</h3>
+        </div>
+        <p class="card-desc">Run directly on your Linux terminal without installing anything:</p>
+        <div class="code-box">
+          <code id="curl-code-text">curl -fsSL https://raw.githubusercontent.com/Dave8011/bootable-maker/main/make-bootable.sh | bash</code>
+          <button id="btn-copy-code" class="btn-copy">Copy</button>
+        </div>
+      </div>
+
+      <!-- ISO Drag & Drop Zone -->
+      <div class="side-card">
+        <div class="card-header">
+          <h3>📀 ISO File Inspector</h3>
+        </div>
+        <div class="dropzone" id="iso-dropzone">
+          <div class="drop-icon">📁</div>
+          <div class="drop-text">Drag & drop your <strong>.iso</strong> file here</div>
+          <div class="drop-sub">or click to browse local files</div>
+          <input type="file" id="iso-file-input" accept=".iso" style="display:none;">
+        </div>
+
+        <div class="iso-info-panel hidden" id="iso-info-panel">
+          <div class="info-row"><span class="label">File:</span> <span class="val" id="iso-val-name">-</span></div>
+          <div class="info-row"><span class="label">Size:</span> <span class="val" id="iso-val-size">-</span></div>
+          <div class="info-row"><span class="label">Signature:</span> <span class="val status-valid" id="iso-val-sig">ISO9660 Verified</span></div>
+        </div>
+      </div>
+
+      <!-- Connected USB Devices Inspector -->
+      <div class="side-card">
+        <div class="card-header">
+          <h3>🔌 Connected USB Drives</h3>
+          <button id="btn-refresh-usb" class="btn-mini">🔄 Refresh</button>
+        </div>
+
+        <div class="usb-list" id="usb-list">
+          <div class="usb-item active-device" data-index="1" data-path="/dev/sdb">
+            <div class="usb-icon">💾</div>
+            <div class="usb-details">
+              <div class="usb-name">[1] /dev/sdb</div>
+              <div class="usb-meta">14.6 GB • SanDisk Cruzer Blade</div>
+              <div class="usb-tag">Removable USB</div>
+            </div>
+            <div class="usb-select-badge">Selected</div>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+  </main>
+
+  <!-- Notification Toast -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- JavaScript -->
+  <script src="app.js"></script>
+</body>
+</html>
