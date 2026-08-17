@@ -36,14 +36,18 @@ document.addEventListener('DOMContentLoaded', () => {
     step: 'IDLE', // IDLE, STEP_ISO, STEP_USB, STEP_CONFIRM, STEP_WRITING, STEP_DONE
     isoPath: '/home/dave/Downloads/omarchy-4.0.0.iso',
     isoSize: '5.9G',
-    selectedUsb: '/dev/sdb',
-    usbDevices: [
-      { id: 1, path: '/dev/sdb', size: '14.6 GB', model: 'SanDisk Cruzer Blade', vendor: 'SanDisk' }
-    ]
+    selectedUsb: null,
+    usbDevices: [],
+    demoUsbAttached: false,
+    webUsbDevices: []
   };
 
   // Welcome Screen
   printWelcomeBanner();
+
+  // Initialize WebUSB hardware listeners & initial scan
+  initWebUsb();
+  refreshUsbDevices();
 
   // Event Listeners
   btnRunTop.addEventListener('click', () => startWizard());
@@ -112,9 +116,110 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   btnRefreshUsb.addEventListener('click', () => {
-    renderUsbList();
-    showToast('Refreshed USB device list');
+    refreshUsbDevices().then(() => {
+      if (STATE.usbDevices.length > 0) {
+        showToast(`Found ${STATE.usbDevices.length} USB device(s)`);
+      } else {
+        showToast('No USB drive detected');
+      }
+    });
   });
+
+  // ------------------------------------------------------------
+  // WebUSB & Device Management Functions
+  // ------------------------------------------------------------
+
+  function initWebUsb() {
+    if (navigator.usb) {
+      navigator.usb.addEventListener('connect', (e) => {
+        showToast(`USB Hardware Connected: ${e.device.productName || 'USB Storage'}`);
+        refreshUsbDevices();
+      });
+
+      navigator.usb.addEventListener('disconnect', (e) => {
+        showToast(`USB Hardware Removed: ${e.device.productName || 'USB Storage'}`);
+        refreshUsbDevices();
+      });
+    }
+  }
+
+  async function refreshUsbDevices() {
+    let devices = [];
+
+    // Query WebUSB if supported
+    if (navigator.usb) {
+      try {
+        const paired = await navigator.usb.getDevices();
+        STATE.webUsbDevices = paired;
+        paired.forEach((dev, idx) => {
+          const letter = String.fromCharCode(98 + idx); // sdb, sdc, etc.
+          devices.push({
+            id: devices.length + 1,
+            path: `/dev/sd${letter}`,
+            size: '16 GB',
+            model: dev.productName || 'USB Storage',
+            vendor: dev.manufacturerName || 'Removable',
+            isWebUsb: true
+          });
+        });
+      } catch (err) {
+        console.warn('WebUSB query error:', err);
+      }
+    }
+
+    // Add Demo USB if toggled on
+    if (STATE.demoUsbAttached) {
+      const letter = String.fromCharCode(98 + devices.length);
+      devices.push({
+        id: devices.length + 1,
+        path: `/dev/${letter === 'b' ? 'sdb' : 'sd' + letter}`,
+        size: '14.6 GB',
+        model: 'SanDisk Cruzer Blade',
+        vendor: 'SanDisk',
+        isDemo: true
+      });
+    }
+
+    STATE.usbDevices = devices;
+
+    // Update selected USB
+    if (STATE.usbDevices.length > 0) {
+      if (!STATE.selectedUsb || !STATE.usbDevices.some(d => d.path === STATE.selectedUsb)) {
+        STATE.selectedUsb = STATE.usbDevices[0].path;
+      }
+    } else {
+      STATE.selectedUsb = null;
+    }
+
+    renderUsbList();
+  }
+
+  async function requestWebUsbDevice() {
+    if (!navigator.usb) {
+      showToast('WebUSB is not supported in this browser. Use Chrome/Edge or run bash script.');
+      return;
+    }
+
+    try {
+      const device = await navigator.usb.requestDevice({ filters: [] });
+      showToast(`Paired USB: ${device.productName || 'USB Device'}`);
+      await refreshUsbDevices();
+    } catch (err) {
+      if (err.name !== 'NotFoundError') {
+        showToast(`USB Error: ${err.message}`);
+      }
+    }
+  }
+
+  function toggleDemoUsb() {
+    STATE.demoUsbAttached = !STATE.demoUsbAttached;
+    refreshUsbDevices();
+    if (STATE.demoUsbAttached) {
+      showToast('Plugged in demo USB drive (/dev/sdb)');
+    } else {
+      showToast('Unplugged demo USB drive');
+    }
+  }
 
   // ------------------------------------------------------------
   // Terminal Functions
@@ -143,7 +248,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function handleTerminalCommand(input) {
-    // Print user's entered command to buffer
     printLine(`dave@garuda:~/bootable-maker$ ${input}`, 't-prompt');
 
     if (STATE.step === 'IDLE') {
@@ -201,25 +305,40 @@ document.addEventListener('DOMContentLoaded', () => {
       promptUsbStep();
 
     } else if (STATE.step === 'STEP_USB') {
-      let chosenPath = '/dev/sdb';
-
-      if (input === '1' || input === '' || input === 'sdb' || input === '/dev/sdb') {
-        chosenPath = '/dev/sdb';
-      } else if (input === '2' || input === 'sdc' || input === '/dev/sdc') {
-        chosenPath = '/dev/sdc';
-      } else {
-        printLine(`❌ Invalid device selection: "${input}". Please enter 1 or /dev/sdb`, 't-error');
+      if (STATE.usbDevices.length === 0) {
+        printLine('', '');
+        printLine('❌ No USB drive detected. Please plug in a USB pendrive first!', 't-error');
+        printLine('💡 Tip: Use [🔄 Refresh] or click [🧪 Plug Demo USB] in the sidebar.', 't-info');
         return;
       }
 
-      STATE.selectedUsb = chosenPath;
+      let chosenDevice = null;
+      const cleanInput = input.trim();
+
+      if (cleanInput === '' || cleanInput === '1') {
+        chosenDevice = STATE.usbDevices[0];
+      } else if (!isNaN(parseInt(cleanInput))) {
+        const idx = parseInt(cleanInput) - 1;
+        if (idx >= 0 && idx < STATE.usbDevices.length) {
+          chosenDevice = STATE.usbDevices[idx];
+        }
+      } else {
+        chosenDevice = STATE.usbDevices.find(d => d.path === cleanInput || d.path.endsWith(cleanInput));
+      }
+
+      if (!chosenDevice) {
+        printLine(`❌ Invalid device selection: "${input}". Please choose 1-${STATE.usbDevices.length}`, 't-error');
+        return;
+      }
+
+      STATE.selectedUsb = chosenDevice.path;
       printLine('');
       printLine('============================================================', 't-header');
       printLine('                    SELECTED USB DRIVE', 't-header');
       printLine('============================================================', 't-header');
-      printLine(`Device     : ${STATE.selectedUsb}`, 't-info');
-      printLine(`Size       : 14.6 GB`, 't-dim');
-      printLine(`Model      : SanDisk Cruzer Blade`, 't-dim');
+      printLine(`Device     : ${chosenDevice.path}`, 't-info');
+      printLine(`Size       : ${chosenDevice.size}`, 't-dim');
+      printLine(`Model      : ${chosenDevice.vendor ? chosenDevice.vendor + ' ' : ''}${chosenDevice.model}`, 't-dim');
       printLine(`Removable  : YES`, 't-success');
       printLine('');
       printLine('============================================================', 't-warning');
@@ -250,23 +369,45 @@ document.addEventListener('DOMContentLoaded', () => {
     printLine('                    USB DRIVE DETECTION', 't-header');
     printLine('============================================================', 't-header');
     printLine('🔍 Searching for connected USB drives...', 't-info');
-    printLine('✅ Removable USB drive(s) detected.', 't-success');
-    printLine('');
-    printLine('Available USB drives:', 't-info');
-    printLine('------------------------------------------------------------', 't-dim');
-    printLine('  [1] /dev/sdb — 14.6 GB (SanDisk Cruzer Blade)', 't-success');
-    printLine('------------------------------------------------------------', 't-dim');
-    printLine('');
-    printLine('Select USB device [1-1] or enter path (default: 1):', 't-info');
+
+    if (STATE.usbDevices.length === 0) {
+      printLine('❌ No removable USB drive detected.', 't-error');
+      printLine('', '');
+      printLine('Check that:', 't-warning');
+      printLine('  • The pendrive is physically connected to your system', 't-dim');
+      printLine('  • You have clicked [🔌 Connect / Pair USB Drive] or [🧪 Plug Demo USB]', 't-dim');
+      printLine('  • Or run the bash script directly in your Linux terminal:', 't-dim');
+      printLine('    curl -fsSL https://raw.githubusercontent.com/Dave8011/bootable-maker/main/make-bootable.sh | bash', 't-info');
+      printLine('', '');
+      printLine('Press Enter or type "scan" after plugging in your USB drive:', 't-info');
+    } else {
+      printLine('✅ Removable USB drive(s) detected.', 't-success');
+      printLine('');
+      printLine('Available USB drives:', 't-info');
+      printLine('------------------------------------------------------------', 't-dim');
+      STATE.usbDevices.forEach((dev, idx) => {
+        const isSel = dev.path === STATE.selectedUsb ? ' (Selected)' : '';
+        printLine(`  [${idx + 1}] ${dev.path} — ${dev.size} (${dev.vendor ? dev.vendor + ' ' : ''}${dev.model})${isSel}`, 't-success');
+      });
+      printLine('------------------------------------------------------------', 't-dim');
+      printLine('');
+      printLine(`Select USB device [1-${STATE.usbDevices.length}] or enter path (default: 1):`, 't-info');
+    }
   }
 
   function executeWritingProcess() {
+    const selectedDev = STATE.usbDevices.find(d => d.path === STATE.selectedUsb) || {
+      path: STATE.selectedUsb || '/dev/sdb',
+      size: '14.6 GB',
+      model: 'Cruzer Blade'
+    };
+
     printLine('');
     printLine('============================================================', 't-header');
     printLine('                    UNMOUNTING USB', 't-header');
     printLine('============================================================', 't-header');
-    printLine(`Unmounting active partitions on ${STATE.selectedUsb}...`, 't-info');
-    printLine(`✅ ${STATE.selectedUsb} unmounted successfully.`, 't-success');
+    printLine(`Unmounting active partitions on ${selectedDev.path}...`, 't-info');
+    printLine(`✅ ${selectedDev.path} unmounted successfully.`, 't-success');
     printLine('');
     printLine('============================================================', 't-header');
     printLine('                    WIPING FILESYSTEM', 't-header');
@@ -278,7 +419,7 @@ document.addEventListener('DOMContentLoaded', () => {
     printLine('                    WRITING ISO TO USB', 't-header');
     printLine('============================================================', 't-header');
     printLine(`Source      : ${STATE.isoPath}`, 't-dim');
-    printLine(`Destination : ${STATE.selectedUsb}`, 't-dim');
+    printLine(`Destination : ${selectedDev.path}`, 't-dim');
     printLine(`ISO Size    : ${STATE.isoSize}`, 't-dim');
     printLine('');
     printLine('Writing ISO block data using dd (status=progress)...', 't-info');
@@ -306,7 +447,7 @@ document.addEventListener('DOMContentLoaded', () => {
     printLine('                  ✅ BOOTABLE USB COMPLETE', 't-header');
     printLine('============================================================', 't-header');
     printLine(`ISO : ${STATE.isoPath}`, 't-success');
-    printLine(`USB : ${STATE.selectedUsb} (14.6 GB)`, 't-success');
+    printLine(`USB : ${STATE.selectedUsb}`, 't-success');
     printLine('');
     printLine('The USB drive has been synchronized and is ready to boot!', 't-success');
     printLine('You can now safely remove the pendrive.', 't-dim');
@@ -317,11 +458,23 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function scanUsbDevices() {
-    printLine('🔍 Scanning block devices...', 't-info');
-    printLine('NAME   SIZE MODEL              VENDOR   TRAN  RM', 't-dim');
-    printLine('sda  476.9G FORESEE S50AF512GB ATA      sata   0 (Internal SSD)', 't-dim');
-    printLine('sdb   14.6G Cruzer Blade       SanDisk  usb    1 (Removable USB)', 't-success');
-    printLine('');
+    refreshUsbDevices().then(() => {
+      printLine('🔍 Scanning block devices...', 't-info');
+      printLine('NAME   SIZE MODEL              VENDOR   TRAN  RM', 't-dim');
+      printLine('sda  476.9G FORESEE S50AF512GB ATA      sata   0 (Internal SSD)', 't-dim');
+      
+      if (STATE.usbDevices.length === 0) {
+        printLine('❌ No removable USB drive detected', 't-error');
+        printLine('💡 Plug in a USB pendrive and click [🔄 Refresh] or type "scan" again.', 't-dim');
+      } else {
+        STATE.usbDevices.forEach(dev => {
+          const devName = dev.path.replace('/dev/', '');
+          const modelStr = ((dev.vendor ? dev.vendor + ' ' : '') + dev.model).padEnd(18).substring(0, 18);
+          printLine(`${devName.padEnd(4)} ${dev.size.padEnd(6)} ${modelStr} ${(dev.vendor || 'USB').padEnd(8)} usb    1 (Removable USB)`, 't-success');
+        });
+      }
+      printLine('');
+    });
   }
 
   function useSampleIso() {
@@ -354,17 +507,68 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderUsbList() {
-    usbList.innerHTML = `
-      <div class="usb-item active-device" data-index="1" data-path="/dev/sdb">
-        <div class="usb-icon">💾</div>
-        <div class="usb-details">
-          <div class="usb-name">[1] /dev/sdb</div>
-          <div class="usb-meta">14.6 GB • SanDisk Cruzer Blade</div>
-          <div class="usb-tag">Removable USB</div>
+    if (STATE.usbDevices.length === 0) {
+      usbList.innerHTML = `
+        <div class="usb-empty-state">
+          <div class="empty-icon">🔌</div>
+          <div class="empty-title">No USB Drive Connected</div>
+          <div class="empty-desc">Plug in a removable USB pendrive to create a bootable installer.</div>
+          <div class="empty-actions">
+            <button id="btn-pair-usb" class="btn btn-primary btn-sm">🔌 Connect / Pair USB Drive</button>
+            <button id="btn-toggle-demo" class="btn btn-ghost btn-sm">🧪 Plug Demo USB (${STATE.demoUsbAttached ? 'Plugged' : 'Unplugged'})</button>
+          </div>
+          <div class="usb-hint">
+            💡 <strong>Browser USB Access:</strong> Click <strong>Connect / Pair USB Drive</strong> or execute the command line script on Linux for direct hardware raw write.
+          </div>
         </div>
-        <div class="usb-select-badge">Selected</div>
-      </div>
-    `;
+      `;
+
+      const btnPair = document.getElementById('btn-pair-usb');
+      const btnToggle = document.getElementById('btn-toggle-demo');
+      
+      if (btnPair) btnPair.addEventListener('click', requestWebUsbDevice);
+      if (btnToggle) btnToggle.addEventListener('click', toggleDemoUsb);
+    } else {
+      let html = '';
+      STATE.usbDevices.forEach((dev, idx) => {
+        const isSelected = dev.path === STATE.selectedUsb;
+        html += `
+          <div class="usb-item ${isSelected ? 'active-device' : ''}" data-path="${dev.path}">
+            <div class="usb-icon">💾</div>
+            <div class="usb-details">
+              <div class="usb-name">[${idx + 1}] ${dev.path}</div>
+              <div class="usb-meta">${dev.size} • ${dev.vendor ? dev.vendor + ' ' : ''}${dev.model}</div>
+              <div class="usb-tag">Removable USB ${dev.isDemo ? '(Demo)' : dev.isWebUsb ? '(WebUSB)' : ''}</div>
+            </div>
+            ${isSelected ? '<div class="usb-select-badge">Selected</div>' : ''}
+          </div>
+        `;
+      });
+
+      html += `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.4rem;">
+          <button id="btn-pair-usb-sub" class="btn-mini" title="Pair additional USB device via WebUSB">🔌 Pair Hardware</button>
+          <button id="btn-toggle-demo" class="btn-mini" title="Toggle Demo USB Mode">${STATE.demoUsbAttached ? '❌ Remove Demo USB' : '🧪 Add Demo USB'}</button>
+        </div>
+      `;
+
+      usbList.innerHTML = html;
+
+      const items = usbList.querySelectorAll('.usb-item');
+      items.forEach(item => {
+        item.addEventListener('click', () => {
+          const path = item.getAttribute('data-path');
+          STATE.selectedUsb = path;
+          renderUsbList();
+          showToast(`Selected device: ${path}`);
+        });
+      });
+
+      const btnPairSub = document.getElementById('btn-pair-usb-sub');
+      const btnToggle = document.getElementById('btn-toggle-demo');
+      if (btnPairSub) btnPairSub.addEventListener('click', requestWebUsbDevice);
+      if (btnToggle) btnToggle.addEventListener('click', toggleDemoUsb);
+    }
   }
 
   function copyOneLiner() {

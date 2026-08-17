@@ -14,7 +14,7 @@
   <!-- CSS -->
   <link rel="stylesheet" href="style.css">
 </head>
-<body class="theme-dark crt-effect">
+<body class="theme-dark">
 
   <!-- Background Animated Mesh -->
   <div class="bg-mesh"></div>
@@ -60,7 +60,7 @@
           <span class="title-icon">💻</span> bash — dave@garuda: ~/bootable-maker
         </div>
         <div class="terminal-toolbar">
-          <button id="toggle-crt" class="tool-btn active" title="Toggle CRT Scanline">📺 CRT</button>
+          <button id="toggle-crt" class="tool-btn" title="Toggle CRT Scanline">📺 CRT Effect</button>
           <button id="clear-term" class="tool-btn" title="Clear Screen">🧹 Clear</button>
           <button id="reset-wizard" class="tool-btn" title="Restart Session">🔄 Reset</button>
         </div>
@@ -126,20 +126,12 @@
       <!-- Connected USB Devices Inspector -->
       <div class="side-card">
         <div class="card-header">
-          <h3>🔌 Connected USB Drives</h3>
-          <button id="btn-refresh-usb" class="btn-mini">🔄 Refresh</button>
+          <h3>🔌 Connected USB Drives <span class="usb-badge-webusb">WebUSB</span></h3>
+          <button id="btn-refresh-usb" class="btn-mini" title="Scan for connected USB drives">🔄 Refresh</button>
         </div>
 
         <div class="usb-list" id="usb-list">
-          <div class="usb-item active-device" data-index="1" data-path="/dev/sdb">
-            <div class="usb-icon">💾</div>
-            <div class="usb-details">
-              <div class="usb-name">[1] /dev/sdb</div>
-              <div class="usb-meta">14.6 GB • SanDisk Cruzer Blade</div>
-              <div class="usb-tag">Removable USB</div>
-            </div>
-            <div class="usb-select-badge">Selected</div>
-          </div>
+          <!-- Dynamically populated by app.js -->
         </div>
       </div>
 
