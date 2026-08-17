@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // State Management
   const STATE = {
     step: 'IDLE', // IDLE, STEP_ISO, STEP_USB, STEP_CONFIRM, STEP_WRITING, STEP_DONE
-    isoPath: '/home/dave/Downloads/omarchy-4.0.0.iso',
+    isoPath: '~/Downloads/ubuntu-24.04-desktop-amd64.iso',
     isoSize: '5.9G',
     selectedUsb: null,
     usbDevices: [],
@@ -248,7 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function handleTerminalCommand(input) {
-    printLine(`dave@garuda:~/bootable-maker$ ${input}`, 't-prompt');
+    printLine(`user@linux:~/bootable-maker$ ${input}`, 't-prompt');
 
     if (STATE.step === 'IDLE') {
       const cmd = input.toLowerCase();
@@ -478,14 +478,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function useSampleIso() {
-    STATE.isoPath = '/home/dave/Downloads/omarchy-4.0.0.iso';
+    STATE.isoPath = '~/Downloads/ubuntu-24.04-desktop-amd64.iso';
     STATE.isoSize = '5.9 GB';
-    updateIsoPanel('omarchy-4.0.0.iso', '5.9 GB');
-    showToast('Loaded sample ISO: omarchy-4.0.0.iso');
+    updateIsoPanel('ubuntu-24.04-desktop-amd64.iso', '5.9 GB');
+    showToast('Loaded sample ISO: ubuntu-24.04-desktop-amd64.iso');
   }
 
   function handleIsoFile(file) {
-    STATE.isoPath = `/home/dave/Downloads/${file.name}`;
+    STATE.isoPath = `~/Downloads/${file.name}`;
     const szMB = (file.size / (1024 * 1024)).toFixed(1);
     const sizeStr = file.size > 1024 * 1024 * 1024 
       ? (file.size / (1024 * 1024 * 1024)).toFixed(2) + ' GB' 
