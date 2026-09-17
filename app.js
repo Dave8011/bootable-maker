@@ -490,15 +490,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (STATE.usbDevices.length === 0) {
       usbList.innerHTML = `
         <div class="usb-empty-state">
-          <div class="empty-icon">🔌</div>
-          <div class="empty-title">Pair Your USB Pendrive</div>
-          <div class="empty-desc">Browsers require permission to detect USB drives. Click below to pair your connected USB pendrive.</div>
+          <div class="empty-icon">🔒</div>
+          <div class="empty-title">Browser USB Security Notice</div>
+          <div class="empty-desc">Chrome & Edge block web JavaScript from accessing USB Mass Storage drives directly for OS protection.</div>
           <div class="empty-actions">
-            <button id="btn-pair-usb" class="btn btn-primary btn-sm">🔌 Click to Pair USB Drive</button>
+            <button id="btn-pair-usb" class="btn btn-secondary btn-sm" style="margin-bottom:0.3rem;">🔌 Request WebUSB Device</button>
           </div>
           <div class="usb-hint">
-            💡 <strong>Linux Terminal Launcher:</strong> Execute directly in Linux terminal for automatic system block detection:
-            <div style="margin-top:0.35rem; color:#34d399; font-family:var(--font-mono); font-size:0.68rem; word-break:break-all;">
+            ⚡ <strong>Run in Linux Terminal for Direct USB Hardware Access:</strong>
+            <div style="margin-top:0.4rem; color:#34d399; font-family:var(--font-mono); font-size:0.72rem; word-break:break-all; background:#060910; padding:0.5rem; border-radius:6px; border:1px solid rgba(16,185,129,0.3);">
               curl -fsSL https://raw.githubusercontent.com/Dave8011/bootable-maker/main/make-bootable.sh | bash
             </div>
           </div>
