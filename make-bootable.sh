@@ -27,10 +27,14 @@ set -o pipefail
 #
 # ============================================================
 
-# Ensure interactive terminal input works when script is run via `curl ... | bash`
-if [[ ! -t 0 && -c /dev/tty ]]; then
-    exec </dev/tty
-fi
+# Helper function to read from /dev/tty when script is executed via `curl ... | bash`
+read_tty() {
+    if [[ -c /dev/tty ]]; then
+        read "$@" </dev/tty
+    else
+        read "$@"
+    fi
+}
 
 clear
 
@@ -107,7 +111,7 @@ done
 echo "📀 ISO FILE"
 echo "------------------------------------------------------------"
 
-read -rp "Enter ISO file path: " ISO
+read_tty -rp "Enter ISO file path: " ISO
 
 # Remove accidental quotes
 ISO="${ISO#\"}"
@@ -170,7 +174,7 @@ else
     echo
     echo "The file may still be a valid hybrid boot image."
     echo
-    read -rp "Continue anyway? [y/N]: " CONTINUE
+    read_tty -rp "Continue anyway? [y/N]: " CONTINUE
 
     if [[ ! "$CONTINUE" =~ ^[Yy]$ ]]; then
         echo
@@ -188,7 +192,7 @@ if [[ "$ISO_LOWER" =~ win1[01] || "$ISO_LOWER" =~ windows ]]; then
     echo "   UEFI partition tools like Ventoy or WoeUSB to boot on PC hardware."
     echo "   Standard block writing (dd) works for Linux ISOs (Ubuntu, Arch, Fedora, etc.)."
     echo
-    read -rp "Continue with dd writing anyway? [y/N]: " WIN_CONTINUE
+    read_tty -rp "Continue with dd writing anyway? [y/N]: " WIN_CONTINUE
     if [[ ! "$WIN_CONTINUE" =~ ^[Yy]$ ]]; then
         error "Cancelled. For Windows USB creation, please use Ventoy (https://www.ventoy.net) or WoeUSB."
         exit 1
@@ -295,7 +299,7 @@ else
     PROMPT_TEXT="Select USB device number [1-${#DETECTED_DEV_PATHS[@]}] or enter path (example: /dev/sdb): "
 fi
 
-read -rp "$PROMPT_TEXT" INPUT_USB
+read_tty -rp "$PROMPT_TEXT" INPUT_USB
 
 INPUT_USB="$(echo "$INPUT_USB" | xargs)"
 
@@ -414,7 +418,7 @@ echo "Your internal drive should normally appear as /dev/sda"
 echo "and is NOT removable."
 echo
 
-read -rp "Type ERASE to continue: " CONFIRM
+read_tty -rp "Type ERASE to continue: " CONFIRM
 
 if [[ "$CONFIRM" != "ERASE" ]]; then
     echo
@@ -441,7 +445,7 @@ echo "   OMARCHY-USB"
 echo "   LINUX-INSTALLER"
 echo
 
-read -rp "Enter USB name (leave empty for default): " USB_LABEL
+read_tty -rp "Enter USB name (leave empty for default): " USB_LABEL
 
 # Replace spaces with -
 USB_LABEL="${USB_LABEL// /-}"
