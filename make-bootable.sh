@@ -27,6 +27,11 @@ set -o pipefail
 #
 # ============================================================
 
+# Ensure interactive terminal input works when script is run via `curl ... | bash`
+if [[ ! -t 0 && -c /dev/tty ]]; then
+    exec </dev/tty
+fi
+
 clear
 
 SCRIPT_NAME="ISO → BOOTABLE USB CREATOR"
@@ -170,6 +175,22 @@ else
     if [[ ! "$CONTINUE" =~ ^[Yy]$ ]]; then
         echo
         error "Cancelled."
+        exit 1
+    fi
+fi
+
+# Check if ISO filename indicates Windows (e.g. win11-pro.iso)
+ISO_LOWER=$(echo "$ISO" | tr '[:upper:]' '[:lower:]')
+if [[ "$ISO_LOWER" =~ win1[01] || "$ISO_LOWER" =~ windows ]]; then
+    echo
+    warning "WINDOWS ISO DETECTED: $ISO"
+    echo "   Windows 10/11 ISOs use UDF non-hybrid partition structures and require"
+    echo "   UEFI partition tools like Ventoy or WoeUSB to boot on PC hardware."
+    echo "   Standard block writing (dd) works for Linux ISOs (Ubuntu, Arch, Fedora, etc.)."
+    echo
+    read -rp "Continue with dd writing anyway? [y/N]: " WIN_CONTINUE
+    if [[ ! "$WIN_CONTINUE" =~ ^[Yy]$ ]]; then
+        error "Cancelled. For Windows USB creation, please use Ventoy (https://www.ventoy.net) or WoeUSB."
         exit 1
     fi
 fi
@@ -326,6 +347,19 @@ if [[ "$REMOVABLE" != "1" && "$USB_TRAN_VERIFY" != "usb" ]]; then
     echo "$USB is NOT identified as a removable drive or USB transport device."
     echo
     echo "For safety, the script will NOT modify it."
+    exit 1
+fi
+
+# Check if device contains active system root (/) or critical system mount points
+SYS_MOUNTS=$(lsblk -lnpo MOUNTPOINTS "$USB" 2>/dev/null | grep -E '^/($|boot|home|etc|usr|var)' || true)
+if [[ -n "$SYS_MOUNTS" ]]; then
+    echo
+    echo "============================================================"
+    error "                CRITICAL SAFETY STOP"
+    echo "============================================================"
+    echo
+    echo "$USB contains active system mount point(s): $SYS_MOUNTS"
+    echo "Overwriting your primary operating system drive is strictly forbidden."
     exit 1
 fi
 

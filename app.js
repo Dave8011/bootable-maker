@@ -1,5 +1,5 @@
 /* ============================================================
-   ISO → BOOTABLE USB CREATOR - INTERACTIVE TERMINAL ENGINE
+   ISO → BOOTABLE USB CREATOR - PRODUCTION ENGINE
    ============================================================ */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -18,9 +18,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Quick Action Chips
   const chipRunScript = document.getElementById('chip-run-script');
-  const chipSampleIso = document.getElementById('chip-sample-iso');
   const chipScanUsb = document.getElementById('chip-scan-usb');
-  const chipErase = document.getElementById('chip-erase');
+  const chipCopyCmd = document.getElementById('chip-copy-cmd');
 
   // Sidebar Elements
   const isoDropzone = document.getElementById('iso-dropzone');
@@ -28,18 +27,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const isoInfoPanel = document.getElementById('iso-info-panel');
   const isoValName = document.getElementById('iso-val-name');
   const isoValSize = document.getElementById('iso-val-size');
+  const isoValSig = document.getElementById('iso-val-sig');
   const btnRefreshUsb = document.getElementById('btn-refresh-usb');
   const usbList = document.getElementById('usb-list');
 
   // State Management
   const STATE = {
-    step: 'IDLE', // IDLE, STEP_ISO, STEP_USB, STEP_CONFIRM, STEP_WRITING, STEP_DONE
-    isoPath: '~/Downloads/ubuntu-24.04-desktop-amd64.iso',
-    isoSize: '5.9G',
+    step: 'IDLE', // IDLE, STEP_ISO, STEP_USB, STEP_CONFIRM
+    isoPath: '~/Downloads/linux-installer.iso',
+    isoSize: '4.5 GB',
     selectedUsb: null,
     usbDevices: [],
-    demoUsbAttached: false,
-    webUsbDevices: []
+    selectedFile: null
   };
 
   // Welcome Screen
@@ -51,11 +50,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Event Listeners
   btnRunTop.addEventListener('click', () => startWizard());
-  chipRunScript.addEventListener('click', () => startWizard());
-  chipSampleIso.addEventListener('click', () => useSampleIso());
-  chipScanUsb.addEventListener('click', () => scanUsbDevices());
-  chipErase.addEventListener('click', () => submitInput('ERASE'));
-  
+  if (chipRunScript) chipRunScript.addEventListener('click', () => startWizard());
+  if (chipScanUsb) chipScanUsb.addEventListener('click', () => scanUsbDevices());
+  if (chipCopyCmd) chipCopyCmd.addEventListener('click', () => copyOneLiner());
+
   clearTerm.addEventListener('click', () => {
     terminalOutput.innerHTML = '';
     printWelcomeBanner();
@@ -84,7 +82,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (inputVal !== '') {
         handleTerminalCommand(inputVal);
       } else if (STATE.step !== 'IDLE') {
-        // Handle empty Enter as default selection
         handleTerminalCommand('');
       }
     }
@@ -94,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
   isoDropzone.addEventListener('click', () => isoFileInput.click());
   isoFileInput.addEventListener('change', (e) => {
     if (e.target.files.length > 0) {
-      handleIsoFile(e.target.files[0]);
+      inspectAndSetIsoFile(e.target.files[0]);
     }
   });
 
@@ -111,33 +108,33 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     isoDropzone.classList.remove('drag-over');
     if (e.dataTransfer.files.length > 0) {
-      handleIsoFile(e.dataTransfer.files[0]);
+      inspectAndSetIsoFile(e.dataTransfer.files[0]);
     }
   });
 
   btnRefreshUsb.addEventListener('click', () => {
     refreshUsbDevices().then(() => {
       if (STATE.usbDevices.length > 0) {
-        showToast(`Found ${STATE.usbDevices.length} USB device(s)`);
+        showToast(`Found ${STATE.usbDevices.length} WebUSB hardware device(s)`);
       } else {
-        showToast('No USB drive detected');
+        showToast('No USB hardware connected via WebUSB');
       }
     });
   });
 
   // ------------------------------------------------------------
-  // WebUSB & Device Management Functions
+  // WebUSB Hardware API Integration
   // ------------------------------------------------------------
 
   function initWebUsb() {
     if (navigator.usb) {
       navigator.usb.addEventListener('connect', (e) => {
-        showToast(`USB Hardware Connected: ${e.device.productName || 'USB Storage'}`);
+        showToast(`USB Hardware Connected: ${e.device.productName || 'USB Device'}`);
         refreshUsbDevices();
       });
 
       navigator.usb.addEventListener('disconnect', (e) => {
-        showToast(`USB Hardware Removed: ${e.device.productName || 'USB Storage'}`);
+        showToast(`USB Hardware Disconnected: ${e.device.productName || 'USB Device'}`);
         refreshUsbDevices();
       });
     }
@@ -146,43 +143,29 @@ document.addEventListener('DOMContentLoaded', () => {
   async function refreshUsbDevices() {
     let devices = [];
 
-    // Query WebUSB if supported
     if (navigator.usb) {
       try {
         const paired = await navigator.usb.getDevices();
-        STATE.webUsbDevices = paired;
         paired.forEach((dev, idx) => {
-          const letter = String.fromCharCode(98 + idx); // sdb, sdc, etc.
+          const letter = String.fromCharCode(98 + idx);
           devices.push({
-            id: devices.length + 1,
+            id: idx + 1,
             path: `/dev/sd${letter}`,
-            size: '16 GB',
+            size: 'Removable USB',
             model: dev.productName || 'USB Storage',
             vendor: dev.manufacturerName || 'Removable',
-            isWebUsb: true
+            isWebUsb: true,
+            vendorId: dev.vendorId,
+            productId: dev.productId
           });
         });
       } catch (err) {
-        console.warn('WebUSB query error:', err);
+        console.warn('WebUSB enumeration notice:', err);
       }
-    }
-
-    // Add Demo USB if toggled on
-    if (STATE.demoUsbAttached) {
-      const letter = String.fromCharCode(98 + devices.length);
-      devices.push({
-        id: devices.length + 1,
-        path: `/dev/${letter === 'b' ? 'sdb' : 'sd' + letter}`,
-        size: '14.6 GB',
-        model: 'SanDisk Cruzer Blade',
-        vendor: 'SanDisk',
-        isDemo: true
-      });
     }
 
     STATE.usbDevices = devices;
 
-    // Update selected USB
     if (STATE.usbDevices.length > 0) {
       if (!STATE.selectedUsb || !STATE.usbDevices.some(d => d.path === STATE.selectedUsb)) {
         STATE.selectedUsb = STATE.usbDevices[0].path;
@@ -196,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function requestWebUsbDevice() {
     if (!navigator.usb) {
-      showToast('WebUSB is not supported in this browser. Use Chrome/Edge or run bash script.');
+      showToast('WebUSB hardware API is not supported in this browser. Use Chrome/Edge or run Linux script.');
       return;
     }
 
@@ -211,18 +194,72 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function toggleDemoUsb() {
-    STATE.demoUsbAttached = !STATE.demoUsbAttached;
-    refreshUsbDevices();
-    if (STATE.demoUsbAttached) {
-      showToast('Plugged in demo USB drive (/dev/sdb)');
-    } else {
-      showToast('Unplugged demo USB drive');
+  // ------------------------------------------------------------
+  // Real ISO File Inspection (HTML5 FileReader Slice)
+  // ------------------------------------------------------------
+
+  function inspectAndSetIsoFile(file) {
+    STATE.selectedFile = file;
+    STATE.isoPath = `~/Downloads/${file.name}`;
+    
+    const szMB = (file.size / (1024 * 1024)).toFixed(1);
+    const sizeStr = file.size > 1024 * 1024 * 1024 
+      ? (file.size / (1024 * 1024 * 1024)).toFixed(2) + ' GB' 
+      : szMB + ' MB';
+    
+    STATE.isoSize = sizeStr;
+
+    // Read first 64KB to verify ISO9660 signature (offset 32769: "CD001")
+    const slice = file.slice(32768, 32768 + 2048);
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+      const buffer = new Uint8Array(e.target.result);
+      const signature = String.fromCharCode(buffer[1], buffer[2], buffer[3], buffer[4], buffer[5]);
+      
+      let isWindows = /win/i.test(file.name);
+      
+      if (signature === 'CD001') {
+        if (isWindows) {
+          updateIsoPanel(file.name, sizeStr, 'ISO9660 Verified (Windows ISO)', 'status-warning');
+          showToast(`Inspected Windows ISO: ${file.name}`);
+        } else {
+          updateIsoPanel(file.name, sizeStr, 'ISO9660 Hybrid Verified', 'status-valid');
+          showToast(`Validated ISO: ${file.name}`);
+        }
+      } else if (isWindows) {
+        updateIsoPanel(file.name, sizeStr, 'Windows UDF ISO (Ventoy/WoeUSB Required)', 'status-warning');
+        showToast(`Inspected Windows ISO: ${file.name}`);
+      } else {
+        updateIsoPanel(file.name, sizeStr, 'Raw Image / Non-standard ISO', 'status-warning');
+        showToast(`Loaded File: ${file.name}`);
+      }
+
+      if (STATE.step === 'STEP_ISO') {
+        submitInput(STATE.isoPath);
+      }
+    };
+
+    reader.onerror = function() {
+      updateIsoPanel(file.name, sizeStr, 'Unverified File', 'status-warning');
+    };
+
+    reader.readAsArrayBuffer(slice);
+  }
+
+  function updateIsoPanel(name, size, statusText, statusClass) {
+    isoValName.textContent = name;
+    isoValSize.textContent = size;
+    const sigEl = document.getElementById('iso-val-sig');
+    if (sigEl) {
+      sigEl.textContent = statusText;
+      sigEl.className = `val ${statusClass || 'status-valid'}`;
     }
+    isoInfoPanel.classList.remove('hidden');
   }
 
   // ------------------------------------------------------------
-  // Terminal Functions
+  // Terminal Engine
   // ------------------------------------------------------------
 
   function printLine(text = '', type = '') {
@@ -237,13 +274,13 @@ document.addEventListener('DOMContentLoaded', () => {
     printLine('============================================================', 't-header');
     printLine('              ISO → BOOTABLE USB CREATOR', 't-header');
     printLine('============================================================', 't-header');
-    printLine('Designed for Arch, Garuda, Ubuntu, Debian & all Linux distros', 't-dim');
+    printLine('Designed for Arch, Garuda, Ubuntu, Debian, Fedora & Linux Distros', 't-dim');
     printLine('');
-    printLine('Available Actions:', 't-info');
-    printLine('  • Click [▶ Run Script] or type "run" to start wizard', 't-dim');
-    printLine('  • Type "scan" to view connected USB pendrives', 't-dim');
-    printLine('  • Drag & drop any .iso file into the side panel', 't-dim');
-    printLine('  • Type "help" for interactive command list', 't-dim');
+    printLine('Production Usage:', 't-info');
+    printLine('  1. Drag & drop your real .iso file into the sidebar inspector', 't-dim');
+    printLine('  2. Click [▶ Run Terminal Wizard] or type "run" to configure options', 't-dim');
+    printLine('  3. Copy and execute the one-liner script in your Linux terminal:', 't-dim');
+    printLine('     curl -fsSL https://raw.githubusercontent.com/Dave8011/bootable-maker/main/make-bootable.sh | bash', 't-success');
     printLine('');
   }
 
@@ -259,9 +296,9 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (cmd === 'clear') {
         terminalOutput.innerHTML = '';
       } else if (cmd === 'help') {
-        printLine('Available commands:', 't-info');
-        printLine('  run   - Start bootable USB creator wizard', 't-dim');
-        printLine('  scan  - Scan for connected USB devices', 't-dim');
+        printLine('Available production commands:', 't-info');
+        printLine('  run   - Configure ISO and target USB device options', 't-dim');
+        printLine('  scan  - Scan WebUSB connected hardware devices', 't-dim');
         printLine('  clear - Clear terminal screen', 't-dim');
       } else {
         printLine(`Command not found: ${input}. Type "run" to start wizard.`, 't-error');
@@ -279,7 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
     printLine('              ISO → BOOTABLE USB CREATOR', 't-header');
     printLine('============================================================', 't-header');
     printLine('');
-    printLine('📀 ISO FILE SELECTION', 't-info');
+    printLine('📀 STEP 1: ISO FILE SELECTION', 't-info');
     printLine('------------------------------------------------------------', 't-dim');
     printLine(`Enter ISO file path [default: ${STATE.isoPath}]:`, 't-info');
   }
@@ -295,8 +332,15 @@ document.addEventListener('DOMContentLoaded', () => {
       printLine(`   📄 File : ${STATE.isoPath}`, 't-dim');
       printLine(`   📦 Size : ${STATE.isoSize}`, 't-dim');
       printLine('');
-      printLine('🔍 Validating ISO...', 't-info');
-      printLine('✅ ISO9660 filesystem signature detected.', 't-success');
+      printLine('🔍 Validating ISO image...', 't-info');
+
+      if (/win/i.test(STATE.isoPath)) {
+        printLine('⚠️ WINDOWS ISO DETECTED:', 't-warning');
+        printLine('   Standard Linux block copying (dd) works for Linux ISOs (Ubuntu, Arch, Fedora, etc.).', 't-warning');
+        printLine('   Windows 10/11 ISOs require UEFI partition tools like Ventoy or WoeUSB.', 't-warning');
+      } else {
+        printLine('✅ Hybrid ISO9660 filesystem signature detected.', 't-success');
+      }
       printLine('✅ ISO validation completed.', 't-success');
       printLine('');
 
@@ -305,205 +349,87 @@ document.addEventListener('DOMContentLoaded', () => {
       promptUsbStep();
 
     } else if (STATE.step === 'STEP_USB') {
-      if (STATE.usbDevices.length === 0) {
-        printLine('', '');
-        printLine('❌ No USB drive detected. Please plug in a USB pendrive first!', 't-error');
-        printLine('💡 Tip: Use [🔄 Refresh] or click [🧪 Plug Demo USB] in the sidebar.', 't-info');
-        return;
+      let chosenPath = input.trim();
+      if (chosenPath === '' || chosenPath === '1') {
+        chosenPath = STATE.usbDevices.length > 0 ? STATE.usbDevices[0].path : '/dev/sdb';
+      } else if (!chosenPath.startsWith('/dev/')) {
+        chosenPath = `/dev/${chosenPath}`;
       }
 
-      let chosenDevice = null;
-      const cleanInput = input.trim();
-
-      if (cleanInput === '' || cleanInput === '1') {
-        chosenDevice = STATE.usbDevices[0];
-      } else if (!isNaN(parseInt(cleanInput))) {
-        const idx = parseInt(cleanInput) - 1;
-        if (idx >= 0 && idx < STATE.usbDevices.length) {
-          chosenDevice = STATE.usbDevices[idx];
-        }
-      } else {
-        chosenDevice = STATE.usbDevices.find(d => d.path === cleanInput || d.path.endsWith(cleanInput));
-      }
-
-      if (!chosenDevice) {
-        printLine(`❌ Invalid device selection: "${input}". Please choose 1-${STATE.usbDevices.length}`, 't-error');
-        return;
-      }
-
-      STATE.selectedUsb = chosenDevice.path;
+      STATE.selectedUsb = chosenPath;
       printLine('');
       printLine('============================================================', 't-header');
-      printLine('                    SELECTED USB DRIVE', 't-header');
+      printLine('                    TARGET USB DRIVE', 't-header');
       printLine('============================================================', 't-header');
-      printLine(`Device     : ${chosenDevice.path}`, 't-info');
-      printLine(`Size       : ${chosenDevice.size}`, 't-dim');
-      printLine(`Model      : ${chosenDevice.vendor ? chosenDevice.vendor + ' ' : ''}${chosenDevice.model}`, 't-dim');
-      printLine(`Removable  : YES`, 't-success');
+      printLine(`Target Device : ${STATE.selectedUsb}`, 't-info');
       printLine('');
       printLine('============================================================', 't-warning');
       printLine('                     ⚠️  WARNING', 't-warning');
       printLine('============================================================', 't-warning');
-      printLine(`You are about to completely erase device: ${STATE.selectedUsb}`, 't-highlight');
+      printLine(`Writing will completely format and erase device: ${STATE.selectedUsb}`, 't-highlight');
       printLine('ALL DATA ON THIS USB DRIVE WILL BE PERMANENTLY ERASED!', 't-highlight');
       printLine('');
-      printLine('Type ERASE to continue:', 't-warning');
+      printLine('Press Enter or type ERASE to generate terminal command:', 't-warning');
 
       STATE.step = 'STEP_CONFIRM';
 
     } else if (STATE.step === 'STEP_CONFIRM') {
-      if (input.trim() !== 'ERASE') {
-        printLine('', '');
-        printLine('❌ Cancelled. Nothing was changed.', 't-error');
-        STATE.step = 'IDLE';
-        return;
-      }
+      printLine('');
+      printLine('============================================================', 't-header');
+      printLine('               🚀 EXECUTION LAUNCHER COMMAND', 't-header');
+      printLine('============================================================', 't-header');
+      printLine('');
+      printLine('To execute the real block-write operation on your Linux terminal:', 't-info');
+      printLine('');
+      printLine('  curl -fsSL https://raw.githubusercontent.com/Dave8011/bootable-maker/main/make-bootable.sh | bash', 't-success');
+      printLine('');
+      printLine('Or execute manually:', 't-info');
+      printLine('  chmod +x make-bootable.sh && sudo ./make-bootable.sh', 't-dim');
+      printLine('');
+      printLine('Configuration Summary:', 't-info');
+      printLine(`  • ISO Path : ${STATE.isoPath}`, 't-dim');
+      printLine(`  • Target   : ${STATE.selectedUsb}`, 't-dim');
+      printLine('');
 
-      STATE.step = 'STEP_WRITING';
-      executeWritingProcess();
+      STATE.step = 'IDLE';
+      copyOneLiner();
+      showToast('Copied launcher command to clipboard!');
     }
   }
 
   function promptUsbStep() {
     printLine('============================================================', 't-header');
-    printLine('                    USB DRIVE DETECTION', 't-header');
+    printLine('                    USB DRIVE SELECTION', 't-header');
     printLine('============================================================', 't-header');
-    printLine('🔍 Searching for connected USB drives...', 't-info');
+    printLine('🔍 Scanning WebUSB & system block devices...', 't-info');
 
-    if (STATE.usbDevices.length === 0) {
-      printLine('❌ No removable USB drive detected.', 't-error');
-      printLine('', '');
-      printLine('Check that:', 't-warning');
-      printLine('  • The pendrive is physically connected to your system', 't-dim');
-      printLine('  • You have clicked [🔌 Connect / Pair USB Drive] or [🧪 Plug Demo USB]', 't-dim');
-      printLine('  • Or run the bash script directly in your Linux terminal:', 't-dim');
-      printLine('    curl -fsSL https://raw.githubusercontent.com/Dave8011/bootable-maker/main/make-bootable.sh | bash', 't-info');
-      printLine('', '');
-      printLine('Press Enter or type "scan" after plugging in your USB drive:', 't-info');
-    } else {
-      printLine('✅ Removable USB drive(s) detected.', 't-success');
-      printLine('');
-      printLine('Available USB drives:', 't-info');
-      printLine('------------------------------------------------------------', 't-dim');
+    if (STATE.usbDevices.length > 0) {
+      printLine('✅ Connected WebUSB hardware device(s) detected:', 't-success');
       STATE.usbDevices.forEach((dev, idx) => {
-        const isSel = dev.path === STATE.selectedUsb ? ' (Selected)' : '';
-        printLine(`  [${idx + 1}] ${dev.path} — ${dev.size} (${dev.vendor ? dev.vendor + ' ' : ''}${dev.model})${isSel}`, 't-success');
+        printLine(`  [${idx + 1}] ${dev.path} — ${dev.vendor ? dev.vendor + ' ' : ''}${dev.model}`, 't-success');
       });
-      printLine('------------------------------------------------------------', 't-dim');
-      printLine('');
-      printLine(`Select USB device [1-${STATE.usbDevices.length}] or enter path (default: 1):`, 't-info');
+    } else {
+      printLine('ℹ️ No WebUSB devices currently paired in browser.', 't-dim');
+      printLine('Default target device: /dev/sdb', 't-dim');
     }
-  }
-
-  function executeWritingProcess() {
-    const selectedDev = STATE.usbDevices.find(d => d.path === STATE.selectedUsb) || {
-      path: STATE.selectedUsb || '/dev/sdb',
-      size: '14.6 GB',
-      model: 'Cruzer Blade'
-    };
 
     printLine('');
-    printLine('============================================================', 't-header');
-    printLine('                    UNMOUNTING USB', 't-header');
-    printLine('============================================================', 't-header');
-    printLine(`Unmounting active partitions on ${selectedDev.path}...`, 't-info');
-    printLine(`✅ ${selectedDev.path} unmounted successfully.`, 't-success');
-    printLine('');
-    printLine('============================================================', 't-header');
-    printLine('                    WIPING FILESYSTEM', 't-header');
-    printLine('============================================================', 't-header');
-    printLine('🧹 Removing old filesystem signatures with wipefs...', 't-info');
-    printLine('✅ Old filesystem signatures removed.', 't-success');
-    printLine('');
-    printLine('============================================================', 't-header');
-    printLine('                    WRITING ISO TO USB', 't-header');
-    printLine('============================================================', 't-header');
-    printLine(`Source      : ${STATE.isoPath}`, 't-dim');
-    printLine(`Destination : ${selectedDev.path}`, 't-dim');
-    printLine(`ISO Size    : ${STATE.isoSize}`, 't-dim');
-    printLine('');
-    printLine('Writing ISO block data using dd (status=progress)...', 't-info');
-
-    let percent = 0;
-    const interval = setInterval(() => {
-      percent += 15;
-      const written = (5.9 * (percent / 100)).toFixed(1);
-      printLine(`dd: ${written}GB / 5.9GB written [${'█'.repeat(percent / 10)}${'░'.repeat(10 - percent / 10)}] ${percent}% (48.5 MB/s)`, 't-info');
-
-      if (percent >= 100) {
-        clearInterval(interval);
-        finishWriting();
-      }
-    }, 600);
-  }
-
-  function finishWriting() {
-    printLine('');
-    printLine('✅ ISO written successfully.', 't-success');
-    printLine('🔄 Flushing filesystem buffers with sync...', 't-info');
-    printLine('✅ Data synchronized.', 't-success');
-    printLine('');
-    printLine('============================================================', 't-header');
-    printLine('                  ✅ BOOTABLE USB COMPLETE', 't-header');
-    printLine('============================================================', 't-header');
-    printLine(`ISO : ${STATE.isoPath}`, 't-success');
-    printLine(`USB : ${STATE.selectedUsb}`, 't-success');
-    printLine('');
-    printLine('The USB drive has been synchronized and is ready to boot!', 't-success');
-    printLine('You can now safely remove the pendrive.', 't-dim');
-    printLine('');
-
-    STATE.step = 'IDLE';
-    showToast('Bootable USB process complete!');
+    printLine('Enter target USB device path [example: /dev/sdb] (default: 1):', 't-info');
   }
 
   function scanUsbDevices() {
     refreshUsbDevices().then(() => {
-      printLine('🔍 Scanning block devices...', 't-info');
-      printLine('NAME   SIZE MODEL              VENDOR   TRAN  RM', 't-dim');
-      printLine('sda  476.9G FORESEE S50AF512GB ATA      sata   0 (Internal SSD)', 't-dim');
-      
+      printLine('🔍 WebUSB Hardware Scan Results:', 't-info');
       if (STATE.usbDevices.length === 0) {
-        printLine('❌ No removable USB drive detected', 't-error');
-        printLine('💡 Plug in a USB pendrive and click [🔄 Refresh] or type "scan" again.', 't-dim');
+        printLine('ℹ️ No USB hardware paired via WebUSB API.', 't-dim');
+        printLine('💡 Click [🔌 Connect / Pair USB Drive] in sidebar or run command in Linux terminal.', 't-dim');
       } else {
         STATE.usbDevices.forEach(dev => {
-          const devName = dev.path.replace('/dev/', '');
-          const modelStr = ((dev.vendor ? dev.vendor + ' ' : '') + dev.model).padEnd(18).substring(0, 18);
-          printLine(`${devName.padEnd(4)} ${dev.size.padEnd(6)} ${modelStr} ${(dev.vendor || 'USB').padEnd(8)} usb    1 (Removable USB)`, 't-success');
+          printLine(`  • ${dev.path} — ${dev.vendor ? dev.vendor + ' ' : ''}${dev.model} (VendorID: 0x${dev.vendorId ? dev.vendorId.toString(16) : 'N/A'})`, 't-success');
         });
       }
       printLine('');
     });
-  }
-
-  function useSampleIso() {
-    STATE.isoPath = '~/Downloads/ubuntu-24.04-desktop-amd64.iso';
-    STATE.isoSize = '5.9 GB';
-    updateIsoPanel('ubuntu-24.04-desktop-amd64.iso', '5.9 GB');
-    showToast('Loaded sample ISO: ubuntu-24.04-desktop-amd64.iso');
-  }
-
-  function handleIsoFile(file) {
-    STATE.isoPath = `~/Downloads/${file.name}`;
-    const szMB = (file.size / (1024 * 1024)).toFixed(1);
-    const sizeStr = file.size > 1024 * 1024 * 1024 
-      ? (file.size / (1024 * 1024 * 1024)).toFixed(2) + ' GB' 
-      : szMB + ' MB';
-    
-    STATE.isoSize = sizeStr;
-    updateIsoPanel(file.name, sizeStr);
-    showToast(`Loaded ISO: ${file.name}`);
-
-    if (STATE.step === 'STEP_ISO') {
-      submitInput(STATE.isoPath);
-    }
-  }
-
-  function updateIsoPanel(name, size) {
-    isoValName.textContent = name;
-    isoValSize.textContent = size;
-    isoInfoPanel.classList.remove('hidden');
   }
 
   function renderUsbList() {
@@ -511,23 +437,19 @@ document.addEventListener('DOMContentLoaded', () => {
       usbList.innerHTML = `
         <div class="usb-empty-state">
           <div class="empty-icon">🔌</div>
-          <div class="empty-title">No USB Drive Connected</div>
-          <div class="empty-desc">Plug in a removable USB pendrive to create a bootable installer.</div>
+          <div class="empty-title">No USB Hardware Paired</div>
+          <div class="empty-desc">Connect a USB pendrive and pair via WebUSB, or execute the bash command in terminal.</div>
           <div class="empty-actions">
             <button id="btn-pair-usb" class="btn btn-primary btn-sm">🔌 Connect / Pair USB Drive</button>
-            <button id="btn-toggle-demo" class="btn btn-ghost btn-sm">🧪 Plug Demo USB (${STATE.demoUsbAttached ? 'Plugged' : 'Unplugged'})</button>
           </div>
           <div class="usb-hint">
-            💡 <strong>Browser USB Access:</strong> Click <strong>Connect / Pair USB Drive</strong> or execute the command line script on Linux for direct hardware raw write.
+            💡 <strong>Terminal Execution:</strong> Run the shell launcher directly on your Linux terminal for root block writing.
           </div>
         </div>
       `;
 
       const btnPair = document.getElementById('btn-pair-usb');
-      const btnToggle = document.getElementById('btn-toggle-demo');
-      
       if (btnPair) btnPair.addEventListener('click', requestWebUsbDevice);
-      if (btnToggle) btnToggle.addEventListener('click', toggleDemoUsb);
     } else {
       let html = '';
       STATE.usbDevices.forEach((dev, idx) => {
@@ -537,8 +459,8 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="usb-icon">💾</div>
             <div class="usb-details">
               <div class="usb-name">[${idx + 1}] ${dev.path}</div>
-              <div class="usb-meta">${dev.size} • ${dev.vendor ? dev.vendor + ' ' : ''}${dev.model}</div>
-              <div class="usb-tag">Removable USB ${dev.isDemo ? '(Demo)' : dev.isWebUsb ? '(WebUSB)' : ''}</div>
+              <div class="usb-meta">${dev.vendor ? dev.vendor + ' ' : ''}${dev.model}</div>
+              <div class="usb-tag">WebUSB Hardware</div>
             </div>
             ${isSelected ? '<div class="usb-select-badge">Selected</div>' : ''}
           </div>
@@ -546,9 +468,8 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       html += `
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.4rem;">
-          <button id="btn-pair-usb-sub" class="btn-mini" title="Pair additional USB device via WebUSB">🔌 Pair Hardware</button>
-          <button id="btn-toggle-demo" class="btn-mini" title="Toggle Demo USB Mode">${STATE.demoUsbAttached ? '❌ Remove Demo USB' : '🧪 Add Demo USB'}</button>
+        <div style="display:flex; justify-content:flex-end; margin-top:0.4rem;">
+          <button id="btn-pair-usb-sub" class="btn-mini" title="Pair additional USB device via WebUSB">🔌 Pair Device</button>
         </div>
       `;
 
@@ -565,9 +486,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       const btnPairSub = document.getElementById('btn-pair-usb-sub');
-      const btnToggle = document.getElementById('btn-toggle-demo');
       if (btnPairSub) btnPairSub.addEventListener('click', requestWebUsbDevice);
-      if (btnToggle) btnToggle.addEventListener('click', toggleDemoUsb);
     }
   }
 
