@@ -123,19 +123,61 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ------------------------------------------------------------
-  // WebUSB Hardware API Integration
+  // WebUSB Hardware Filtering & API Integration
   // ------------------------------------------------------------
+
+  function isUsbStorageDevice(dev) {
+    if (!dev) return false;
+
+    // Direct USB Mass Storage class (0x08)
+    if (dev.deviceClass === 0x08) return true;
+
+    // Filter out non-storage device classes: Video/Webcams (0x0E), Audio (0x01), HID (0x03), Wireless/Bluetooth (0xE0), Hubs (0x09)
+    if ([0x0E, 0x01, 0x03, 0xE0, 0x09].includes(dev.deviceClass)) {
+      return false;
+    }
+
+    // Check interfaces for Mass Storage class (0x08)
+    if (dev.configurations && dev.configurations.length > 0) {
+      for (const config of dev.configurations) {
+        if (config.interfaces) {
+          for (const iface of config.interfaces) {
+            if (iface.alternates) {
+              for (const alt of iface.alternates) {
+                if (alt.interfaceClass === 0x08) {
+                  return true;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Fallback: Exclude non-storage devices by product & manufacturer name keywords
+    const name = ((dev.productName || '') + ' ' + (dev.manufacturerName || '')).toLowerCase();
+    const nonStorageKeywords = ['cam', 'camera', 'uvc', 'video', 'audio', 'mic', 'bluetooth', 'keyboard', 'mouse', 'touchpad', 'fingerprint', 'webcam'];
+    if (nonStorageKeywords.some(kw => name.includes(kw))) {
+      return false;
+    }
+
+    return true;
+  }
 
   function initWebUsb() {
     if (navigator.usb) {
       navigator.usb.addEventListener('connect', (e) => {
-        showToast(`USB Hardware Connected: ${e.device.productName || 'USB Device'}`);
-        refreshUsbDevices();
+        if (isUsbStorageDevice(e.device)) {
+          showToast(`USB Pendrive Connected: ${e.device.productName || 'USB Storage'}`);
+          refreshUsbDevices();
+        }
       });
 
       navigator.usb.addEventListener('disconnect', (e) => {
-        showToast(`USB Hardware Disconnected: ${e.device.productName || 'USB Device'}`);
-        refreshUsbDevices();
+        if (isUsbStorageDevice(e.device)) {
+          showToast(`USB Pendrive Disconnected: ${e.device.productName || 'USB Storage'}`);
+          refreshUsbDevices();
+        }
       });
     }
   }
@@ -146,13 +188,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (navigator.usb) {
       try {
         const paired = await navigator.usb.getDevices();
-        paired.forEach((dev, idx) => {
+        const storageDevs = paired.filter(isUsbStorageDevice);
+
+        storageDevs.forEach((dev, idx) => {
           const letter = String.fromCharCode(98 + idx);
           devices.push({
             id: idx + 1,
             path: `/dev/sd${letter}`,
             size: 'Removable USB',
-            model: dev.productName || 'USB Storage',
+            model: dev.productName || 'USB Storage Drive',
             vendor: dev.manufacturerName || 'Removable',
             isWebUsb: true,
             vendorId: dev.vendorId,
@@ -184,9 +228,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
+      // Prompt user to select USB Storage device
       const device = await navigator.usb.requestDevice({ filters: [] });
-      showToast(`Paired USB: ${device.productName || 'USB Device'}`);
-      await refreshUsbDevices();
+      
+      if (device && !isUsbStorageDevice(device)) {
+        showToast(`Selected device (${device.productName || 'Device'}) is not a USB Storage Pendrive (Webcam/Audio/HID). Please pick a USB flash drive.`);
+        return;
+      }
+
+      if (device) {
+        showToast(`Paired USB Storage: ${device.productName || 'USB Storage'}`);
+        await refreshUsbDevices();
+      }
     } catch (err) {
       if (err.name !== 'NotFoundError') {
         showToast(`USB Error: ${err.message}`);
