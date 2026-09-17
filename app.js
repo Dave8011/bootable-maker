@@ -115,9 +115,9 @@ document.addEventListener('DOMContentLoaded', () => {
   btnRefreshUsb.addEventListener('click', () => {
     refreshUsbDevices().then(() => {
       if (STATE.usbDevices.length > 0) {
-        showToast(`Found ${STATE.usbDevices.length} WebUSB hardware device(s)`);
+        showToast(`Found ${STATE.usbDevices.length} paired USB hardware device(s)`);
       } else {
-        showToast('No USB hardware connected via WebUSB');
+        requestWebUsbDevice();
       }
     });
   });
@@ -332,8 +332,9 @@ document.addEventListener('DOMContentLoaded', () => {
     printLine('Production Usage:', 't-info');
     printLine('  1. Drag & drop your real .iso file into the sidebar inspector', 't-dim');
     printLine('  2. Click [▶ Run Terminal Wizard] or type "run" to configure options', 't-dim');
-    printLine('  3. Copy and execute the one-liner script in your Linux terminal:', 't-dim');
-    printLine('     curl -fsSL https://raw.githubusercontent.com/Dave8011/bootable-maker/main/make-bootable.sh | bash', 't-success');
+    printLine('  3. Execute in your terminal directory:', 't-dim');
+    printLine('     ./make-bootable.sh', 't-success');
+    printLine('     or: curl -fsSL https://raw.githubusercontent.com/Dave8011/bootable-maker/main/make-bootable.sh | bash', 't-dim');
     printLine('');
   }
 
@@ -434,10 +435,10 @@ document.addEventListener('DOMContentLoaded', () => {
       printLine('');
       printLine('To execute the real block-write operation on your Linux terminal:', 't-info');
       printLine('');
-      printLine('  curl -fsSL https://raw.githubusercontent.com/Dave8011/bootable-maker/main/make-bootable.sh | bash', 't-success');
+      printLine('  cd ~/dev/bootable-maker && ./make-bootable.sh', 't-success');
       printLine('');
-      printLine('Or execute manually:', 't-info');
-      printLine('  chmod +x make-bootable.sh && sudo ./make-bootable.sh', 't-dim');
+      printLine('Or run remote launcher:', 't-info');
+      printLine('  curl -fsSL https://raw.githubusercontent.com/Dave8011/bootable-maker/main/make-bootable.sh | bash', 't-dim');
       printLine('');
       printLine('Configuration Summary:', 't-info');
       printLine(`  • ISO Path : ${STATE.isoPath}`, 't-dim');
@@ -490,13 +491,16 @@ document.addEventListener('DOMContentLoaded', () => {
       usbList.innerHTML = `
         <div class="usb-empty-state">
           <div class="empty-icon">🔌</div>
-          <div class="empty-title">No USB Hardware Paired</div>
-          <div class="empty-desc">Connect a USB pendrive and pair via WebUSB, or execute the bash command in terminal.</div>
+          <div class="empty-title">Pair Your USB Pendrive</div>
+          <div class="empty-desc">Browsers require permission to detect USB drives. Click below to pair your connected USB pendrive.</div>
           <div class="empty-actions">
-            <button id="btn-pair-usb" class="btn btn-primary btn-sm">🔌 Connect / Pair USB Drive</button>
+            <button id="btn-pair-usb" class="btn btn-primary btn-sm">🔌 Click to Pair USB Drive</button>
           </div>
           <div class="usb-hint">
-            💡 <strong>Terminal Execution:</strong> Run the shell launcher directly on your Linux terminal for root block writing.
+            💡 <strong>Linux Terminal Launcher:</strong> Execute directly in Linux terminal for automatic system block detection:
+            <div style="margin-top:0.35rem; color:#34d399; font-family:var(--font-mono); font-size:0.68rem; word-break:break-all;">
+              curl -fsSL https://raw.githubusercontent.com/Dave8011/bootable-maker/main/make-bootable.sh | bash
+            </div>
           </div>
         </div>
       `;
@@ -543,10 +547,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function getOneLinerCommand() {
+    if (window.location.origin && window.location.origin.startsWith('http') && !window.location.origin.includes('127.0.0.1') && !window.location.origin.includes('localhost')) {
+      return `curl -fsSL ${window.location.origin}/make-bootable.sh | bash`;
+    }
+    return `curl -fsSL https://raw.githubusercontent.com/Dave8011/bootable-maker/main/make-bootable.sh | bash`;
+  }
+
+  function updateOneLinerBox() {
+    const codeText = document.getElementById('curl-code-text');
+    if (codeText) {
+      codeText.textContent = getOneLinerCommand();
+    }
+  }
+
+  // Initialize live one-liner text box
+  updateOneLinerBox();
+
   function copyOneLiner() {
-    const code = curlCodeText.textContent;
+    const code = getOneLinerCommand();
     navigator.clipboard.writeText(code).then(() => {
-      showToast('Copied terminal launcher command to clipboard!');
+      showToast('Copied launcher command to clipboard!');
     }).catch(() => {
       showToast('Copied command!');
     });
